@@ -51,15 +51,14 @@ constexpr std::size_t kSpawnKeyBits = 32 * 32 + 1 + 32;
  *
  * Slot 37 is schema `0x80805007` -> `0x80805008`, which holds two `0x8080500B` records and one
  * `0x80805009`. `0x8080500B` is 32 + 8 + `0x8080500F` (four groups of i8,i8,u32,bool = 196) + 7 + 1
- * + 32 + 32 + five biased i32 + `0x8080500D`; `0x80805009` is 32 + 8 + 8. `0x8080500D` is a 7-bit
- * COUNT followed by that many 16-bit elements, so **this body is variable width** -- a fixed number
- * cannot be right for it in general, and a zero count is the well-formed empty form.
+ * + 32 + 32 + five biased i32 + `0x8080500D`. With the dynamic arrays empty each is 475 bits.
+ * The final `0x80805009` contains a u32 plus `0x8080956C` and `0x8080954D`: fixed arrays of 32
+ * and 64 u8 elements. Their schema array lengths apply even when the dynamic arrays are empty.
  *
- * 2 x 475 + 48 = 998. An earlier note recorded 1750, which no whole element count produces
- * (23 gives 1734, 24 gives 1766); it was never verified on the wire the way the type-35 and
- * type-18 widths were, and it is not used.
+ * The empty body is 2 x 475 + 32 + 32 x 8 + 64 x 8 = 1750 bits. Counting each fixed array as
+ * one byte truncates it by 752 bits and prevents the client from applying the roster.
  */
-constexpr std::size_t kWideRecordBits = 998;
+constexpr std::size_t kWideRecordBits = 2 * 475 + 32 + 32 * 8 + 64 * 8;
 /**
  * Width of the type-30 body, from the client's field tables.
  * Slot 30 is schema `0x80809532`: a nested `0x80809C42` of {u32, 7-bit biased +1, 16-bit biased
