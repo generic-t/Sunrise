@@ -25,6 +25,7 @@
 #include "../hooks/config_getter/config_getter_lifecycle.h"
 #include "../hooks/cursor/runtime.h"
 #include "../hooks/graphics/graphics_hook_lifecycle.h"
+#include "../hooks/haunted_validation_override/haunted_validation_override.h"
 #include "../hooks/hitch_probe/hitch_probe.h"
 #include "../hooks/inactivity/inactivity_override.h"
 #include "../hooks/infinite_ammo/infinite_ammo.h"
@@ -181,6 +182,7 @@ void clear_game_targets() noexcept {
                      packageKeys ? core::log::Level::info : core::log::Level::warn,
                      packageKeys ? "ev=activate stage=package_keys result=ok"
                                  : "ev=activate stage=package_keys result=fail");
+    (void)hooks::haunted_validation_override::install();
     // Diagnostic capture reports its own outcome and never demotes this stage.
     // The probe hooks only the index allocator, whose two-argument shape was read out of its own
     // body. The initialiser beside it is left alone: its fifth argument is passed on the stack,
