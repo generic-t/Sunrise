@@ -18,3 +18,18 @@ else()
     target_compile_options(lore_visibility_test PRIVATE -Wall -Wextra -Werror -UNDEBUG)
 endif()
 add_test(NAME lore_visibility COMMAND lore_visibility_test)
+
+set(SRC "${CMAKE_CURRENT_SOURCE_DIR}/../Sunrise/src")
+add_executable(map_generator_auth_test map_generator_auth_test.cpp
+    "${SRC}/middleware/bap/activity_message/activity_sensor_auth_bodies.cpp"
+    "${SRC}/middleware/bap/activity_message/activity_sensor_auth_blocks.cpp"
+    "${SRC}/middleware/encoding/bit_reader.cpp"
+    "${SRC}/middleware/encoding/bit_writer.cpp")
+target_include_directories(map_generator_auth_test PRIVATE "${SRC}")
+target_compile_features(map_generator_auth_test PRIVATE cxx_std_20)
+if(MSVC)
+    target_compile_options(map_generator_auth_test PRIVATE /W4 /WX /UNDEBUG)
+else()
+    target_compile_options(map_generator_auth_test PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+endif()
+add_test(NAME map_generator_auth COMMAND map_generator_auth_test)
