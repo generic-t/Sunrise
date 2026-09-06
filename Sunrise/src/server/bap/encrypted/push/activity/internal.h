@@ -308,4 +308,9 @@ void report_roster_push(Session& session,
                         std::uint64_t bodyHash,
                         std::uint8_t forced) noexcept;
 
+/** Bounded diagnostic of the actual staged message-5 bytes; not a delivery acknowledgement. */
+void report_roster_wire(const message::Snapshot& snapshot,
+                        std::span<const std::byte> body,
+                        std::uint64_t bodyHash) noexcept;
+
 } // namespace sunrise::server::bap::encrypted::push::activity

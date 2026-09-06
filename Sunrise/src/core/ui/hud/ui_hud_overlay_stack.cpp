@@ -3,13 +3,16 @@
  * own content, and the stack places it under the one before it.
  */
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <imgui.h>
 
 #include "../scaling/dpi/ui_dpi_scaling.h"
+#include "../runtime/ui_visibility_runtime.h"
 #include "overlay.h"
 #include "overlays/ui_hud_logo_overlay.h"
+#include "overlays/ui_hud_load_validation_overlay.h"
 #include "overlays/ui_hud_mission_script_overlay.h"
 #include "overlays/ui_hud_sensor_events_overlay.h"
 #include "overlays/ui_hud_session_overlay.h"
@@ -48,6 +51,8 @@ constexpr std::size_t kSwitchCount = kOverlayCount + kStatusLineCount;
 /** Every overlay, in Overlay order. The menu lists them and the corner stacks them in it. */
 constexpr std::array<Entry, kOverlayCount> kOverlays{
     Entry{"Sunrise Card", "sunrise_card", "##sunrise_hud_card", &overlays::logo::draw, true},
+    Entry{"Load Validation", "load_validation", "##sunrise_hud_load_validation",
+          &overlays::load_validation::draw, true},
     // Diagnostic overlays start off because an ordinary run does not need them on screen.
     Entry{
         "Current Status", "current_status", "##sunrise_hud_status", &overlays::status::draw, false},
@@ -140,9 +145,22 @@ void save_switches() noexcept {
  */
 [[nodiscard]] float draw_overlay(const Entry& entry, const ImVec2& position) noexcept {
     ImGui::SetNextWindowPos(position, ImGuiCond_Always);
-    const bool submitContents = ImGui::Begin(entry.windowId, nullptr, kOverlayFlags);
+    ImGuiWindowFlags flags = kOverlayFlags;
+    const bool validation = entry.draw == &overlays::load_validation::draw;
+    if (validation) {
+        const ImGuiViewport* viewport = ImGui::GetMainViewport();
+        const float margin = scaling::dpi::pixels(kViewportMargin);
+        ImGui::SetNextWindowSizeConstraints(ImVec2(0, 0),
+            ImVec2(viewport->WorkSize.x - 2 * margin,
+                   (std::max)(100.0F, viewport->WorkPos.y + viewport->WorkSize.y - position.y - margin)));
+        // It never captures gameplay input. With the menu open, oversized lists can be scrolled.
+        if (runtime::snapshot().visible) flags &= ~(ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoScrollbar);
+    }
+    const bool submitContents = ImGui::Begin(entry.windowId, nullptr, flags);
     if (submitContents) {
+        if (validation) ImGui::PushFont(nullptr, ImGui::GetStyle().FontSizeBase * 0.85F);
         entry.draw();
+        if (validation) ImGui::PopFont();
     }
     // Read inside the window, because the size belongs to it and not to the caller's window.
     const float height = ImGui::GetWindowSize().y;
