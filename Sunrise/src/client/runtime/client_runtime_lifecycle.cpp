@@ -11,6 +11,7 @@
 #include "../hooks/config_getter/config_getter_lifecycle.h"
 #include "../hooks/cursor/runtime.h"
 #include "../hooks/graphics/graphics_hook_lifecycle.h"
+#include "../hooks/haunted_validation_override/haunted_validation_override.h"
 #include "../hooks/inactivity/inactivity_override.h"
 #include "../hooks/infinite_ammo/infinite_ammo.h"
 #include "../hooks/membership_probe/membership_probe.h"
@@ -53,6 +54,10 @@ bool initialize(void* module) noexcept {
 /** Detaches Client hooks before clearing their resolved target entries. */
 bool shutdown() noexcept {
     AcquireSRWLockExclusive(&runtime::g_lock);
+    if (!hooks::haunted_validation_override::uninstall()) {
+        ReleaseSRWLockExclusive(&runtime::g_lock);
+        return false;
+    }
     if (!hooks::graphics::uninstall()) {
         core::log::write(core::log::Channel::client,
                          core::log::Level::error,
