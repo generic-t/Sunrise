@@ -9,6 +9,7 @@
 #include <string_view>
 
 #include "../../../core/logging/log.h"
+#include "../../diagnostics/load_validation.h"
 #include "../bootflow/bootflow_hook_lifecycle.h"
 #include "../network/investment/internal.h"
 #include "../../targets/game.h"
@@ -72,6 +73,7 @@ void capture_line(std::int32_t siteId, const char* text) noexcept {
     std::array<char, kNativeTextSize> sanitized{};
     const std::size_t textLength = sanitize(text, sanitized);
     const std::string_view message{sanitized.data(), textLength};
+    diagnostics::load_validation::note_world_transition(message);
     if (message.find(kContentTablePatchingComplete) != std::string_view::npos) {
         network::investment::arm_socket_menu_routing();
         // This must happen before the native logger returns to investment initialization. A later

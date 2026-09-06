@@ -11,6 +11,7 @@
 #include "../../../core/settings/settings.h"
 #include "../../../state/activity/runtime.h"
 #include "../../hooking/detour.h"
+#include "../../diagnostics/load_validation.h"
 #include "internal.h"
 #include "spawn/probe.h"
 
@@ -43,6 +44,7 @@ void report_spawn_refusal(std::int32_t datum,
                           state::activity::WorldPhase phase,
                           std::uint64_t age) noexcept {
     const spawn::Reading reading = spawn::examine(datum);
+    diagnostics::load_validation::note_player(reading);
     const std::uint64_t now = GetTickCount64();
     const spawn::Refusal previous = g_lastRefusal.exchange(reading.refusal);
     const std::uint64_t last = g_lastProbeTick.load(std::memory_order_relaxed);
@@ -94,7 +96,9 @@ __declspec(noinline) bool __fastcall spawn_gate(std::int32_t datum) noexcept {
     if (!allowed && transitioning) {
         report_spawn_refusal(datum, phase, age);
     }
-    return allowed && loading ? kHeld : allowed;
+    const bool result = allowed && loading ? kHeld : allowed;
+    diagnostics::load_validation::note_spawn_gate(result);
+    return result;
 }
 
 } // namespace

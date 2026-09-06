@@ -17,6 +17,7 @@
 #include "../../../../../state/activity/bubble_authority/runtime.h"
 #include "../../../../../state/activity/runtime.h"
 #include "../../../../activity/host_runtime.h"
+#include "../../../diagnostics/roster_validation.h"
 #include "activity_notification_frame.h"
 #include "internal.h"
 
@@ -535,6 +536,10 @@ bool append_roster_notification(
                        encoded ? RosterOutcome::published : RosterOutcome::encodeFailed,
                        bodyHash,
                        forced);
+    if (encoded) {
+        report_roster_wire(snapshot, std::span(scratch.responseBody).first(messageSize), bodyHash);
+        diagnostics::roster_validation::stage(session, snapshot, messageSize, bodyHash);
+    }
     SecureZeroMemory(scratch.responseBody.data(), messageSize);
     if (!encoded) {
         if (hostStatePending) {
@@ -573,11 +578,13 @@ void commit_staged_roster(Session& session) noexcept {
         return;
     }
     if (session.activityRosterStaged.bindingGeneration != session.activity.bindingGeneration) {
+        diagnostics::roster_validation::discard(session);
         session.activityRosterStaged = {};
         discard_roster_body_record(session);
         return;
     }
     commit_roster_body_record(session);
+    diagnostics::roster_validation::commit(session);
     // The BAP lock serializes publication and incoming activity messages, so replacing the whole
     // fixed map here exposes either the prior delivered roster or this complete delivered roster.
     session.activityRosterDecode = session.activityRosterStaged.decodeMap;
@@ -622,6 +629,7 @@ void commit_staged_roster(Session& session) noexcept {
 
 /** Puts back what a staged roster body advanced, now that the body has been discarded. */
 void discard_staged_roster(Session& session) noexcept {
+    diagnostics::roster_validation::discard(session);
     if (!session.activityRosterStaged.staged) {
         return;
     }

@@ -3,6 +3,7 @@
 #include "../content/activity/activity_sdk_generation_worker.h"
 #include "../content/activity/scriptable_catalog_worker.h"
 #include "../content/investment/worker.h"
+#include "../diagnostics/load_validation.h"
 #include "../hooks/assert_handler/assert_handler_lifecycle.h"
 #include "../hooks/async_io/async_io_lifetime_guard.h"
 #include "../hooks/bitmap/bitmap_hook_lifecycle.h"
@@ -54,6 +55,12 @@ bool initialize(void* module) noexcept {
 /** Detaches Client hooks before clearing their resolved target entries. */
 bool shutdown() noexcept {
     AcquireSRWLockExclusive(&runtime::g_lock);
+    if (!diagnostics::load_validation::uninstall()) {
+        core::log::write(core::log::Channel::client, core::log::Level::error,
+                         "ev=shutdown stage=load_validation result=busy_or_failed");
+        ReleaseSRWLockExclusive(&runtime::g_lock);
+        return false;
+    }
     if (!hooks::haunted_validation_override::uninstall()) {
         ReleaseSRWLockExclusive(&runtime::g_lock);
         return false;

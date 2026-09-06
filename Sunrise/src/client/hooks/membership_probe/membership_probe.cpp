@@ -18,6 +18,7 @@
 
 #include "../../../core/logging/log.h"
 #include "../../hooking/detour.h"
+#include "../../diagnostics/load_validation.h"
 #include "../../patterns/image_scan.h"
 #include "../../patterns/signature_text.h"
 
@@ -166,6 +167,10 @@ void report_bind_inputs(const std::byte* client) noexcept {
     const auto slotRecord = field<std::uint64_t>(client, kSlotRecordOffset);
     const auto rosterContainer = field<std::uint64_t>(client, kRosterContainerOffset);
     const auto receipt = field<std::uint8_t>(client, kBindReceiptOffset);
+    diagnostics::load_validation::note_activity_client(
+        reinterpret_cast<std::uintptr_t>(client), established,
+        static_cast<std::uintptr_t>(slotRecord), static_cast<std::uintptr_t>(rosterContainer),
+        receipt != 0);
     const int written = std::snprintf(line.data(),
                                       line.size(),
                                       "ev=probe stage=bind client=0x%llX established=0x%016llX "

@@ -1,4 +1,5 @@
 #include <array>
+#include <atomic>
 #include <cstddef>
 #include <cstdio>
 #include <span>
@@ -19,6 +20,12 @@ constexpr std::uint8_t kSceneSensorSlotType = 43;
 constexpr std::uint8_t kEngagementSensorSlotType = 70;
 /** Package slot type for one authored squad. */
 constexpr std::uint8_t kSquadSlotType = 1;
+
+/** Enough for a fresh launch's arrival; never dump an unbounded gameplay stream. */
+constexpr unsigned kWireCaptureLimit = 16;
+constexpr std::size_t kWireByteLimit = 16 * 1024;
+constexpr std::size_t kWireChunkBytes = 128;
+std::atomic_uint g_wireCaptures{0};
 
 /** Returns true when the exact slot has a retained Auth body. */
 [[nodiscard]] bool has_override(const message::Snapshot& snapshot,
@@ -68,6 +75,64 @@ constexpr std::uint8_t kSquadSlotType = 1;
 }
 
 } // namespace
+
+/** Captures real encoder output, avoiding a second implementation of the slot/body decisions. */
+void report_roster_wire(const message::Snapshot& snapshot,
+                        std::span<const std::byte> body,
+                        std::uint64_t bodyHash) noexcept {
+    if (!core::log::accepts(core::log::Channel::server, core::log::Level::debug)) {
+        return;
+    }
+    const unsigned capture = g_wireCaptures.fetch_add(1, std::memory_order_relaxed);
+    if (capture >= kWireCaptureLimit) {
+        return;
+    }
+    std::array<char, core::log::kLineCapacity> line{};
+    const auto emit = [&line](int written) noexcept {
+        if (written > 0 && static_cast<std::size_t>(written) < line.size()) {
+            core::log::write(core::log::Channel::server,
+                             core::log::Level::debug,
+                             {line.data(), static_cast<std::size_t>(written)});
+        }
+    };
+    const bool complete = body.size() <= kWireByteLimit;
+    emit(std::snprintf(line.data(), line.size(),
+                       "ev=activity stage=spawn_wire capture=%u result=staged hash=0x%016llX "
+                       "bytes=%zu complete=%u epoch=%u/%u player=0x%016llX keygroup=0x%08X "
+                       "lifetime=%u has_region=%u region=%u await_sync=%u phase_one_only=%u "
+                       "all_player_slots=%u director_bodies=%u wide_bodies=%u",
+                       capture, static_cast<unsigned long long>(bodyHash), body.size(),
+                       complete ? 1U : 0U, static_cast<unsigned>(snapshot.patchEpoch.first),
+                       static_cast<unsigned>(snapshot.patchEpoch.second),
+                       static_cast<unsigned long long>(snapshot.playerKey),
+                       snapshot.roster.playerKeyGroup, static_cast<unsigned>(snapshot.lifetime),
+                       snapshot.hasRegion ? 1U : 0U, snapshot.region,
+                       snapshot.awaitClientSync ? 1U : 0U, snapshot.phaseOneOnly ? 1U : 0U,
+                       snapshot.keyOnEveryParticipationSlot ? 1U : 0U,
+                       snapshot.authorDirectorBodies ? 1U : 0U,
+                       snapshot.authorWideRecordBodies ? 1U : 0U));
+    // Refuse oversized captures explicitly instead of presenting a prefix as a complete packet.
+    if (!complete) {
+        return;
+    }
+    constexpr char hexDigits[] = "0123456789ABCDEF";
+    for (std::size_t offset = 0; offset < body.size(); offset += kWireChunkBytes) {
+        const std::size_t count = body.size() - offset < kWireChunkBytes
+                                     ? body.size() - offset : kWireChunkBytes;
+        std::array<char, kWireChunkBytes * 2 + 1> hex{};
+        for (std::size_t index = 0; index < count; ++index) {
+            const unsigned value = std::to_integer<unsigned>(body[offset + index]);
+            hex[index * 2] = hexDigits[value >> 4];
+            hex[index * 2 + 1] = hexDigits[value & 15U];
+        }
+        emit(std::snprintf(line.data(), line.size(),
+                           "ev=activity stage=spawn_wire_bytes capture=%u offset=%zu count=%zu hex=%s",
+                           capture, offset, count, hex.data()));
+    }
+    emit(std::snprintf(line.data(), line.size(),
+                       "ev=activity stage=spawn_wire_end capture=%u bytes=%zu hash=0x%016llX",
+                       capture, body.size(), static_cast<unsigned long long>(bodyHash)));
+}
 
 /** Reports one roster push, and only when its outcome is new. */
 void report_roster_push(Session& session,
@@ -205,10 +270,12 @@ void report_roster_push(Session& session,
         const int groupWritten =
             std::snprintf(line.data(),
                           line.size(),
-                          "ev=activity stage=roster_group key=0x%08X seq=%u has_seq=%u",
+                          "ev=activity stage=roster_group key=0x%08X seq=%u has_seq=%u "
+                          "object=0x%08X slots=%zu mission_seed_only=%u",
                           group.key,
                           static_cast<unsigned>(group.stateSequence),
-                          group.hasStateSequence ? 1U : 0U);
+                          group.hasStateSequence ? 1U : 0U,
+                          group.objectTag, group.slotTypes.size(), group.missionSeedOnly ? 1U : 0U);
         if (groupWritten > 0) {
             core::log::write(core::log::Channel::server,
                              core::log::Level::debug,

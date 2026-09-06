@@ -13,6 +13,7 @@
 
 #include "../../../core/logging/log.h"
 #include "../../hooking/detour.h"
+#include "../../diagnostics/load_validation.h"
 #include "../../player/player_position.h"
 #include "../bootflow/bootflow_hook_lifecycle.h"
 #include "../fly/fly.h"
@@ -86,6 +87,7 @@ std::int64_t __fastcall camera_transform(std::uint32_t playerIndex) noexcept {
     client::player::position::poll();
     hooks::bootflow::poll_world_step();
     hooks::bootflow::poll_current_slice_set();
+    diagnostics::load_validation::poll_post_load();
     return result;
 }
 

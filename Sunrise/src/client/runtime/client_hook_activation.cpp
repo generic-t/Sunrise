@@ -15,6 +15,7 @@
 #include "../content/investment/worker.h"
 #include "../diagnostics/entity_create_probe.h"
 #include "../diagnostics/image_dump.h"
+#include "../diagnostics/load_validation.h"
 #include "../executable/image.h"
 #include "../hooks/assert_handler/assert_handler_lifecycle.h"
 #include "../hooks/async_io/async_io_lifetime_guard.h"
@@ -183,6 +184,7 @@ void clear_game_targets() noexcept {
                      packageKeys ? "ev=activate stage=package_keys result=ok"
                                  : "ev=activate stage=package_keys result=fail");
     (void)hooks::haunted_validation_override::install();
+    (void)diagnostics::load_validation::install();
     // Diagnostic capture reports its own outcome and never demotes this stage.
     // The probe hooks only the index allocator, whose two-argument shape was read out of its own
     // body. The initialiser beside it is left alone: its fifth argument is passed on the stack,
